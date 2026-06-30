@@ -1,0 +1,333 @@
+-- [[ BUILD GENIUS v9.5 - SMART DETECT & F9 LOGGER ]]
+local Players, RunService, UserInputService, ReplicatedStorage = game:GetService("Players"), game:GetService("RunService"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage")
+local Player, Camera, Mouse = Players.LocalPlayer, workspace.CurrentCamera, Players.LocalPlayer:GetMouse()
+
+local BLOCK_SIZE, buildPreviewFolder, isBuildOn, isLocked, slidersVisible, baseCFrame, renderConnection = 1, nil, false, false, false, nil, nil
+local buildType, adjustMode, sizeX, sizeY, sizeZ, offsetX, offsetY, offsetZ, rotationAngle = "SÀN", "SIZE", 1, 1, 1, 0, 0, 0, 0
+local maxBuildingHeight, currentPlot, currentScannedPart, currentScannedName, currentScannedCategory = 250, nil, nil, "CHƯA_QUÉT", "CHƯA_QUÉT"
+local isCalibratingState, globalActionDebounce, gameBuildRemote, scanConnection = false, false, nil, nil
+
+local function create(class, props, parent)
+    local obj = Instance.new(class)
+    for k, v in pairs(props) do obj[k] = v end
+    if parent then obj.Parent = parent end
+    return obj
+end
+
+local targetGui = typeof(gethui) == "function" and gethui() or game:GetService("CoreGui") or Player:WaitForChild("PlayerGui", 5)
+if targetGui:FindFirstChild("BuildGenius_OfficialUI") then targetGui.BuildGenius_OfficialUI:Destroy() end
+
+local ScreenGui = create("ScreenGui", {Name = "BuildGenius_OfficialUI", ResetOnSpawn = false}, targetGui)
+local OpenIconBtn = create("TextButton", {Size = UDim2.new(0, 45, 0, 45), Position = UDim2.new(0, 15, 0, 15), Text = "🧠", TextSize = 22, BackgroundColor3 = Color3.fromRGB(25, 25, 25), TextColor3 = Color3.fromRGB(255, 255, 255)}, ScreenGui)
+create("UICorner", {CornerRadius = UDim.new(1, 0)}, OpenIconBtn)
+create("UIStroke", {Color = Color3.fromRGB(0, 255, 150), Thickness = 2}, OpenIconBtn)
+
+local MainFrame = create("Frame", {Size = UDim2.new(0, 620, 0, 115), Position = UDim2.new(0.5, -310, 0.3, 0), BackgroundColor3 = Color3.fromRGB(20, 20, 20), Active = true, Draggable = true}, ScreenGui)
+create("UICorner", {CornerRadius = UDim.new(0, 10)}, MainFrame)
+create("UIStroke", {Color = Color3.fromRGB(0, 255, 150), Thickness = 2}, MainFrame)
+
+OpenIconBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
+local Title = create("TextLabel", {Size = UDim2.new(1, 0, 0, 22), Text = "BUILD GENIUS v9.5 [HITBOX BYPASS & F9 LOG]", TextColor3 = Color3.fromRGB(0, 255, 150), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Font = Enum.Font.SourceSansBold, TextSize = 11}, MainFrame)
+create("UICorner", {CornerRadius = UDim.new(0, 10)}, Title)
+
+local function createBtn(text, w, h, x, y, bg)
+    local btn = create("TextButton", {Size = UDim2.new(0, w, 0, h), Position = UDim2.new(0, x, 0, y), Text = text, BackgroundColor3 = bg or Color3.fromRGB(40, 40, 40), TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.SourceSansBold, TextSize = 10}, MainFrame)
+    create("UICorner", {CornerRadius = UDim.new(0, 6)}, btn)
+    return btn
+end
+
+local ToggleBtn = createBtn("BUILD MODE: OFF", 115, 32, 10, 30)
+local LockBtn = createBtn("LOCK POS: FREE", 115, 32, 130, 30)
+local TypeBtn = createBtn("TYPE: SÀN", 115, 32, 250, 30)
+local RotateBtn = createBtn("HƯỚNG MẶT: 0°", 115, 32, 370, 30)
+local BuildAllBtn = createBtn("⚡ XÂY TOÀN BỘ", 115, 32, 495, 30, Color3.fromRGB(180, 35, 35))
+local ModeBtn = createBtn("CHỈNH: K.THƯỚC", 140, 32, 10, 70)
+local CalibBtn = createBtn("QUÉT & PHÂN TÍCH KHỐI", 140, 32, 160, 70, Color3.fromRGB(200, 120, 20))
+local GetPermissionBtn = createBtn("⚡ XIN QUYỀN ĐỜI 2", 140, 32, 310, 70, Color3.fromRGB(30, 100, 200))
+local SlidersToggleBtn = createBtn("BẬT/TẮT THANH KÉO", 140, 32, 460, 70, Color3.fromRGB(35, 120, 100))
+
+local SlidersFrame = create("Frame", {Size = UDim2.new(1, 0, 0, 140), Position = UDim2.new(0, 0, 0, 120), BackgroundTransparency = 0.15, BackgroundColor3 = Color3.fromRGB(15, 15, 15), Visible = false}, MainFrame)
+create("UICorner", {CornerRadius = UDim.new(0, 8)}, SlidersFrame)
+
+task.defer(function()
+    pcall(function()
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if (v:IsA("NumberValue") or v:IsA("IntValue")) and (v.Name:lower():find("maxheight") or v.Name:lower():find("heightlimit")) then maxBuildingHeight = v.Value; break end
+        end
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                local n = obj.Name:lower()
+                if n:find(Player.Name:lower()) or n:find(Player.DisplayName:lower()) or obj:GetAttribute("Owner") == Player.UserId then currentPlot = obj; break end
+            end
+        end
+    end)
+end)
+
+local function scanGameRemotes()
+    if globalActionDebounce then return end
+    globalActionDebounce, GetPermissionBtn.Text, GetPermissionBtn.BackgroundColor3 = true, "🔍 ĐANG QUÉT (CHECK F9)...", Color3.fromRGB(218, 165, 32)
+    print("\n--- [BUILD GENIUS DIALECT]: KHỞI CHẠY QUÉT REMOTE EVENT/FUNCTION ---")
+    
+    task.spawn(function()
+        local found = false
+        pcall(function()
+            for i = 1, 4 do
+                local char = Player.Character
+                local tool = char and char:FindFirstChildOfClass("Tool")
+                if tool then
+                    print("[F9 LOG]: Đang quét bên trong Tool nhân vật đang cầm...")
+                    for _, v in ipairs(tool:GetDescendants()) do 
+                        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then 
+                            gameBuildRemote = v; found = true; 
+                            print("[F9 SUCCESS]: Tìm thấy Remote trong Tool: " .. v:GetFullName())
+                            break 
+                        end 
+                    end
+                end
+                if not found then
+                    print("[F9 LOG]: Không thấy ở Tool, tiến hành quét ReplicatedStorage...")
+                    for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
+                        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                            local n = v.Name:lower()
+                            if n:find("build") or n:find("place") or n:find("block") or n:find("spawn") or n:find("create") or n:find("structure") then 
+                                gameBuildRemote = v; found = true; 
+                                print("[F9 SUCCESS]: Tìm thấy Remote phù hợp ở ReplicatedStorage: " .. v:GetFullName())
+                                break 
+                            end
+                        end
+                    end
+                end
+                if found then break end
+                task.wait(0.05)
+            end
+        end)
+        
+        if not found then warn("[F9 ERROR]: Không tự động tìm được Remote nào! Hãy chắc chắn game có dùng Remote chung hoặc bạn đang cầm Tool xây dựng.") end
+        GetPermissionBtn.Text = found and "✅ QUYỀN: " .. string.upper(gameBuildRemote.Name) or "❌ THỬ LẠI (GIỮ TOOL)"
+        GetPermissionBtn.BackgroundColor3 = found and Color3.fromRGB(46, 139, 87) or Color3.fromRGB(180, 40, 40)
+        globalActionDebounce = false
+    end)
+end
+GetPermissionBtn.MouseButton1Click:Connect(scanGameRemotes)
+
+local function clearPreview()
+    if buildPreviewFolder then
+        if Mouse.TargetFilter == buildPreviewFolder then Mouse.TargetFilter = nil end
+        pcall(function() buildPreviewFolder:Destroy() end)
+        buildPreviewFolder = nil
+    end
+end
+
+local function generateGrid()
+    if not isBuildOn then return end
+    clearPreview()
+    local folder = create("Folder", {Name = "BuildGenius_Grid"}, workspace)
+    Mouse.TargetFilter = folder
+    local xLimit = (buildType == "CỘT") and 1 or sizeX
+    local yLimit = (buildType == "SÀN" or buildType == "TRẦN") and 1 or sizeY
+    local zLimit = (buildType == "TƯỜNG" or buildType == "CỘT") and 1 or sizeZ
+
+    for x = 1, xLimit do
+        for y = 1, yLimit do
+            for z = 1, zLimit do
+                local part = create("Part", {Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE), Anchored = true, CanCollide = false, Transparency = 0.5, Color = Color3.fromRGB(0, 150, 255), Material = Enum.Material.Neon}, folder)
+                part:SetAttribute("RelX", (x - 1) * BLOCK_SIZE); part:SetAttribute("RelY", (y - 1) * BLOCK_SIZE); part:SetAttribute("RelZ", (z - 1) * BLOCK_SIZE)
+                
+                -- Mặt Trước (Front) màu đỏ rực
+                local guiFront = create("SurfaceGui", {Face = Enum.NormalId.Front, AlwaysOnTop = true}, part)
+                create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(255, 0, 0), BackgroundTransparency = 0.2}, guiFront)
+                
+                -- Mặt Sau (Back) màu đỏ rực để định hình khối đặc biệt
+                local guiBack = create("SurfaceGui", {Face = Enum.NormalId.Back, AlwaysOnTop = true}, part)
+                create("Frame", {Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(255, 0, 0), BackgroundTransparency = 0.2}, guiBack)
+                
+                create("SelectionBox", {Adornee = part, LineThickness = 0.02, Color3 = Color3.fromRGB(255, 255, 255)}, part)
+            end
+        end
+    end
+    buildPreviewFolder = folder
+end
+
+local function updatePosition()
+    if not buildPreviewFolder or not buildPreviewFolder:IsDescendantOf(workspace) then return end
+    local targetCFrame
+    if not isLocked then
+        if Mouse.Target and Mouse.Target:IsA("BasePart") then
+            local hitPos = Mouse.Hit.Position
+            targetCFrame = CFrame.new(math.floor(hitPos.X / BLOCK_SIZE + 0.5) * BLOCK_SIZE, math.floor(hitPos.Y / BLOCK_SIZE + 0.5) * BLOCK_SIZE, math.floor(hitPos.Z / BLOCK_SIZE + 0.5) * BLOCK_SIZE) * CFrame.Angles(0, math.rad(rotationAngle), 0)
+            baseCFrame = targetCFrame
+        else
+            targetCFrame = Camera.CFrame * CFrame.new(0, 0, -20) * CFrame.Angles(0, math.rad(rotationAngle), 0)
+            baseCFrame = targetCFrame
+        end
+    else
+        targetCFrame = baseCFrame and (baseCFrame * CFrame.new(offsetX * BLOCK_SIZE, offsetY * BLOCK_SIZE, offsetZ * BLOCK_SIZE)) or CFrame.new(0,0,0)
+    end
+
+    local finalPos = targetCFrame.Position
+    if finalPos.Y > maxBuildingHeight then finalPos = Vector3.new(finalPos.X, maxBuildingHeight, finalPos.Z) end
+    if currentPlot then
+        local pSize, pPos = currentPlot.Size, currentPlot.Position
+        local minX, maxX = pPos.X - pSize.X/2 + BLOCK_SIZE, pPos.X + pSize.X/2 - BLOCK_SIZE
+        local minZ, maxZ = pPos.Z - pSize.Z/2 + BLOCK_SIZE, pPos.Z + pSize.Z/2 - BLOCK_SIZE
+        finalPos = Vector3.new(math.clamp(finalPos.X, minX, maxX), finalPos.Y, math.clamp(finalPos.Z, minZ, maxZ))
+    end
+    targetCFrame = (targetCFrame - targetCFrame.Position) + finalPos
+
+    for _, part in ipairs(buildPreviewFolder:GetChildren()) do
+        if part:IsA("BasePart") and part.Name ~= "ClientPlacedBlock" then
+            part.CFrame = targetCFrame * CFrame.new(part:GetAttribute("RelX"), part:GetAttribute("RelY"), part:GetAttribute("RelZ"))
+        end
+    end
+end
+
+local function executePlaceBlock(targetCFrame)
+    if currentScannedName == "CHƯA_QUÉT" or not gameBuildRemote then return end
+    local lookTarget = Mouse.Target or workspace
+    
+    -- Bắn đa cấu trúc (Có kèm cả Tên Khối lẫn Tên Mục để ép Server chấp nhận lệnh)
+    if gameBuildRemote:IsA("RemoteEvent") then
+        pcall(function() gameBuildRemote:FireServer(currentScannedName, targetCFrame, lookTarget, currentScannedCategory) end)
+        pcall(function() gameBuildRemote:FireServer(currentScannedCategory, currentScannedName, targetCFrame, lookTarget) end)
+        pcall(function() gameBuildRemote:FireServer(targetCFrame, currentScannedName, currentScannedCategory) end)
+    elseif gameBuildRemote:IsA("RemoteFunction") then
+        task.spawn(function() pcall(gameBuildRemote.InvokeServer, gameBuildRemote, currentScannedCategory, currentScannedName, targetCFrame, lookTarget) end)
+        task.spawn(function() pcall(gameBuildRemote.InvokeServer, gameBuildRemote, currentScannedName, targetCFrame, currentScannedCategory) end)
+    end
+end
+
+local function createSlider(parent, labelText, yPos, callback)
+    local container = create("Frame", {Size = UDim2.new(1, -20, 0, 40), Position = UDim2.new(0, 10, 0, yPos), BackgroundTransparency = 1}, parent)
+    local label = create("TextLabel", {Size = UDim2.new(1, 0, 0, 15), Text = "WAIT...", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.SourceSansBold, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1}, container)
+    local track = create("Frame", {Size = UDim2.new(1, 0, 0, 6), Position = UDim2.new(0, 0, 0, 22), BackgroundColor3 = Color3.fromRGB(50, 50, 50)}, container)
+    create("UICorner", {}, track)
+    local knob = create("TextButton", {Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0.5, -8, 0, -5), BackgroundColor3 = Color3.fromRGB(0, 255, 150), Text = ""}, track)
+    create("UICorner", {CornerRadius = UDim.new(1, 0)}, knob)
+
+    local currentRatio, dragging = 0.5, false
+    local function updateVisuals()
+        knob.Position = UDim2.new(currentRatio, -8, 0, -5)
+        if adjustMode == "SIZE" then
+            local val = math.round(1 + currentRatio * 14)
+            label.Text = "KÍCH THƯỚC VÙNG " .. labelText .. ": " .. val; callback(val)
+        else
+            local val = math.round(-15 + currentRatio * 30)
+            label.Text = "TỌA ĐỘ LỆCH " .. labelText .. ": " .. (val > 0 and "+" .. val or val); callback(val)
+        end
+    end
+
+    knob.MouseButton1Down:Connect(function() dragging = true end)
+    UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
+    RunService.RenderStepped:Connect(function()
+        if dragging then
+            local trackLeft, trackWidth = track.AbsolutePosition.X, track.AbsoluteSize.X
+            if trackWidth > 0 then currentRatio = math.clamp((UserInputService:GetMouseLocation().X - trackLeft) / trackWidth, 0, 1); updateVisuals() end
+        end
+    end)
+    return function(forced) currentRatio = forced or 0.5; updateVisuals() end
+end
+
+local updateX = createSlider(SlidersFrame, "X", 5, function(v) if adjustMode == "SIZE" then sizeX = v; generateGrid() else offsetX = v end end)
+local updateY = createSlider(SlidersFrame, "Y", 45, function(v) if adjustMode == "SIZE" then sizeY = v; generateGrid() else offsetY = v end end)
+local updateZ = createSlider(SlidersFrame, "Z", 85, function(v) if adjustMode == "SIZE" then sizeZ = v; generateGrid() else offsetZ = v end end)
+local function resetSliders() updateX(); updateY(); updateZ() end
+resetSliders()
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    if currentScannedName == "CHƯA_QUÉT" then ToggleBtn.Text = "⚠️ BẤM QUÉT KHỐI TRƯỚC!"; task.wait(1.5); ToggleBtn.Text = "BUILD MODE: OFF"; return end
+    isBuildOn = not isBuildOn
+    if isBuildOn then
+        ToggleBtn.Text, ToggleBtn.BackgroundColor3 = "BUILD MODE: ON", Color3.fromRGB(46, 139, 87); generateGrid()
+        if renderConnection then renderConnection:Disconnect() end
+        renderConnection = RunService.RenderStepped:Connect(updatePosition)
+    else
+        ToggleBtn.Text, ToggleBtn.BackgroundColor3 = "BUILD MODE: OFF", Color3.fromRGB(40, 40, 40)
+        if renderConnection then renderConnection:Disconnect(); renderConnection = nil end
+        clearPreview(); isLocked = false; LockBtn.Text, LockBtn.BackgroundColor3 = "LOCK POS: FREE", Color3.fromRGB(40, 40, 40)
+        slidersVisible, SlidersFrame.Visible, SlidersToggleBtn.Text, SlidersToggleBtn.BackgroundColor3 = false, false, "SLIDERS: OFF", Color3.fromRGB(35, 120, 100)
+        resetSliders()
+    end
+end)
+
+LockBtn.MouseButton1Click:Connect(function()
+    if not isBuildOn then return end
+    isLocked = not isLocked
+    LockBtn.Text = isLocked and "LOCK POS: LOCKED" or "LOCK POS: FREE"
+    LockBtn.BackgroundColor3 = isLocked and Color3.fromRGB(218, 165, 32) or Color3.fromRGB(40, 40, 40)
+end)
+
+CalibBtn.MouseButton1Click:Connect(function()
+    if scanConnection then scanConnection:Disconnect() end
+    isCalibratingState, CalibBtn.Text, CalibBtn.BackgroundColor3 = true, "👉 Click Khối Trên Map...", Color3.fromRGB(220, 100, 20)
+    
+    scanConnection = Mouse.Button1Down:Connect(function()
+        if isCalibratingState then
+            local target = Mouse.Target
+            print("\n--- [F9 SCANNING]: TIẾN HÀNH PHÂN TÍCH KHỐI CLICK VÀO ---")
+            
+            if target and target:IsA("BasePart") then
+                print("[F9 DETECT]: Phát hiện bộ phận vật lý click trúng: " .. target.Name)
+                
+                -- Thuật toán Khử Hitbox tàng hình
+                local realObj = target
+                local tName = target.Name:lower()
+                if tName:find("hitbox") or tName == "box" or tName:find("collision") or tName:find("touch") or target.Transparency == 1 then
+                    print("[F9 BYPASS]: Vật thể dính dấp Hitbox tàng hình! Tiến hành truy quét Model gốc...")
+                    if target.Parent and target.Parent ~= workspace then
+                        realObj = target.Parent
+                        print("[F9 BYPASS SUCCESS]: Đã bỏ qua Hitbox. Xác định cấu trúc thực tế: " .. realObj.Name)
+                    end
+                end
+                
+                currentScannedName = realObj.Name
+                currentScannedPart = realObj
+                currentScannedCategory = "Default" -- Mặc định ban đầu
+                
+                -- Thuật toán Tự Động Tìm Mục (Category) trong ReplicatedStorage
+                print("[F9 SEARCH]: Đang quét ReplicatedStorage để tìm mục (Category) của khối [" .. currentScannedName .. "]...")
+                local foundCategory = false
+                for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
+                    if v.Name == currentScannedName and (v:IsA("BasePart") or v:IsA("Model")) then
+                        if v.Parent and (v.Parent:IsA("Folder") or v.Parent:IsA("Configuration")) then
+                            currentScannedCategory = v.Parent.Name
+                            foundCategory = true
+                            print("[F9 CATEGORY MATCH]: Tìm thấy khối nằm trong mục: " .. currentScannedCategory)
+                            break
+                        end
+                    end
+                end
+                if not foundCategory then print("[F9 WARNING]: Không tìm thấy thư mục phân loại riêng. Sử dụng mục mặc định: Default") end
+                
+                CalibBtn.Text = "✅ " .. string.upper(currentScannedName) .. " (" .. string.upper(currentScannedCategory) .. ")"
+                CalibBtn.BackgroundColor3 = Color3.fromRGB(46, 139, 87)
+            else
+                warn("[F9 ERROR]: Click trượt hoặc không trúng khối hợp lệ.")
+                CalibBtn.Text = "❌ TRỐNG (THỬ LẠI)"
+                CalibBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+            end
+            isCalibratingState = false
+            if scanConnection then scanConnection:Disconnect(); scanConnection = nil end
+        end
+    end)
+end)
+
+local types, typeIdx = {"SÀN", "TƯỜNG", "TRẦN", "CỘT"}, 1
+TypeBtn.MouseButton1Click:Connect(function()
+    typeIdx = (typeIdx % #types) + 1; buildType = types[typeIdx]; TypeBtn.Text = "TYPE: " .. buildType
+    if isBuildOn then generateGrid() end
+end)
+
+ModeBtn.MouseButton1Click:Connect(function()
+    adjustMode = (adjustMode == "SIZE") and "POSITION" or "SIZE"
+    ModeBtn.Text = (adjustMode == "SIZE") and "CHỈNH: K.THƯỚC" or "CHỈNH: VỊ TRÍ"
+    resetSliders(); if isBuildOn then generateGrid() end
+end)
+
+local rotNames = {[0] = "HƯỚNG: 0°", [90] = "HƯỚNG: 90°", [180] = "HƯỚNG: 180°", [270] = "HƯỚNG: 270°"}
+RotateBtn.MouseButton1Click:Connect(function()
+    rotationAngle = (rotationAngle + 90) % 360; RotateBtn.Text = rotNames[rotationAngle]
+    if isBuildOn then generateGrid() end
+end)
+
+SlidersToggleBtn.MouseButton1Click:Connect(function()
+    if not isLocked and isBuildOn then SlidersTogg
