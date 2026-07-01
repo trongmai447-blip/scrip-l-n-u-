@@ -1,75 +1,63 @@
--- [[ BUILD GENIUS v13.0 SELF-HEALING & DIAGNOSTIC ENGINE ]] --
--- [[ HỆ THỐNG TỰ QUÉT LỖI F9 VÀ TỰ PHỤC HỒI ]] --
+-- [[ BUILD GENIUS v14.0 ARCHITECT EDITION ]] --
+-- [[ HOLOGRAM PREVIEW, ARRAY BUILDER, SEPARATED UI ]] --
 
-if _G.BuildGeniusV13 then return end
-_G.BuildGeniusV13 = true
+if _G.BuildGeniusV14 then return end
+_G.BuildGeniusV14 = true
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 
--- === BIẾN TOÀN CỤC ===
-_G.IsRecording = false
+-- === BỘ NHỚ AI KIẾN TRÚC ===
 _G.TargetRemote = nil
 _G.TargetArgs = nil
+_G.IsRecording = false
 _G.IsReady = false
-_G.BuildDelay = 0.1 -- Tốc độ đặt khối (sẽ tự thay đổi nếu lag)
+
+-- THÔNG SỐ HITBOX & TỌA ĐỘ (Dịch sang Tiếng Việt)
+_G.Hitbox = Vector3.new(3, 3, 3) -- Kích thước khối mặc định (Ngang, Cao, Dọc)
+_G.Offset = Vector3.new(0, 0, -6) -- Vị trí hiển thị trước mặt
+_G.RotationY = 0 -- Góc xoay (0, 90, 180, 270)
 
 -- =========================================================
--- 🛡️ BỘ QUÉT LỖI F9 VÀ TỰ KHẮC PHỤC (AUTO-DIAGNOSTIC ENGINE)
+-- 👻 HỆ THỐNG GHOST BLOCK (HOLOGRAM MỜ MỜ)
 -- =========================================================
-local function F9_DiagnosticAndFix(errorCode, context)
-    -- In ra F9 Console với định dạng siêu chuẩn
-    warn("=========================================")
-    warn("[BUILD GENIUS v13] ⚠️ PHÁT HIỆN LỖI LÚC: " .. context)
-    print("Mã lỗi gốc: " .. tostring(errorCode))
-    
-    -- AI PHÂN TÍCH VÀ TỰ FIX
-    if string.find(errorCode, "attempt to call a nil value") or string.find(errorCode, "destroyed") then
-        print("🔍 PHÂN TÍCH: Game đã xóa hoặc đổi tên Remote để chống hack!")
-        print("🛠️ TỰ KHẮC PHỤC: Xóa bộ nhớ Remote cũ. Dừng Auto-Build để bảo vệ game không bị văng.")
-        _G.TargetRemote = nil
-        _G.IsReady = false
-        if _G.UpdateLog then _G.UpdateLog("❌ GAME ĐỔI REMOTE! Hãy Bấm Ghi Âm Lại!", Color3.fromRGB(255, 50, 50)) end
-        if _G.ToggleAutoBuild then _G.ToggleAutoBuild(false) end
+local GhostBlock = Instance.new("Part")
+GhostBlock.Anchored = true
+GhostBlock.CanCollide = false
+GhostBlock.Transparency = 0.6
+GhostBlock.Color = Color3.fromRGB(0, 255, 255)
+GhostBlock.Material = Enum.Material.Neon
+GhostBlock.Parent = workspace.CurrentCamera -- Chỉ mình mày thấy
+GhostBlock.Size = _G.Hitbox
+GhostBlock.Visible = false
 
-    elseif string.find(errorCode, "timeout") or string.find(errorCode, "exhausted") then
-        print("🔍 PHÂN TÍCH: Server đang bị quá tải (Lag) hoặc Script chạy quá nhanh!")
-        print("🛠️ TỰ KHẮC PHỤC: Tự động giảm tốc độ Auto-Build xuống để Server kịp xử lý.")
-        _G.BuildDelay = 0.3 -- Giảm tốc độ đặt khối
+-- Render Ghost Block liên tục theo tọa độ
+RunService.RenderStepped:Connect(function()
+    if GhostBlock.Visible and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local Root = LocalPlayer.Character.HumanoidRootPart
+        -- Tính toán tọa độ lưới (Grid Snap)
+        local basePos = Root.Position + (Root.CFrame.RightVector * _G.Offset.X) + Vector3.new(0, _G.Offset.Y, 0) + (Root.CFrame.LookVector * _G.Offset.Z)
+        local snapPos = Vector3.new(math.round(basePos.X / 1) * 1, math.round(basePos.Y / 1) * 1, math.round(basePos.Z / 1) * 1)
         
-    elseif string.find(errorCode, "Vector3") or string.find(errorCode, "CFrame") then
-        print("🔍 PHÂN TÍCH: Lỗi tính toán tọa độ (Toán học). Nhân vật có thể đang rơi ngoài map.")
-        print("🛠️ TỰ KHẮC PHỤC: Tạm ngưng đặt khối, chờ nhân vật ổn định lại.")
-        task.wait(1)
-        
-    else
-        print("🔍 PHÂN TÍCH: Lỗi hệ thống mã hóa bảng (Table) của game.")
-        print("🛠️ TỰ KHẮC PHỤC: Bỏ qua chu kỳ này, tiếp tục vòng lặp sau.")
+        -- Áp dụng hướng xoay
+        GhostBlock.CFrame = CFrame.new(snapPos) * CFrame.Angles(0, math.rad(_G.RotationY), 0)
+        GhostBlock.Size = _G.Hitbox
     end
-    warn("=========================================")
-end
+end)
 
--- === HÀM DEEP CLONE (NHÂN BẢN SÂU KÈM BẢO VỆ LỖI) ===
-local function ReplaceCoordinatesInArgs(args, newPos)
+-- =========================================================
+-- 🧠 AI HACK VÀO GÓI TIN & TỰ ĐỘNG CHỈNH CFRAME
+-- =========================================================
+local function ApplyCFrameAndRotation(args, targetCFrame)
     local newArgs = {}
     for k, v in pairs(args) do
-        if typeof(v) == "Vector3" then
-            newArgs[k] = newPos
-        elseif typeof(v) == "CFrame" then
-            newArgs[k] = CFrame.new(newPos)
+        if typeof(v) == "CFrame" or typeof(v) == "Vector3" then
+            newArgs[k] = targetCFrame -- Chèn CFrame đã xoay và chỉnh tọa độ vào
         elseif type(v) == "table" then
-            -- Chống lặp đệ quy vô hạn (Cyclic Table)
-            local success, result = pcall(function()
-                return ReplaceCoordinatesInArgs(v, newPos)
-            end)
-            if success then
-                newArgs[k] = result
-            else
-                F9_DiagnosticAndFix(result, "Đang nhân bản Bảng dữ liệu")
-                newArgs[k] = v
-            end
+            local s, res = pcall(function() return ApplyCFrameAndRotation(v, targetCFrame) end)
+            newArgs[k] = s and res or v
         else
             newArgs[k] = v 
         end
@@ -77,167 +65,221 @@ local function ReplaceCoordinatesInArgs(args, newPos)
     return newArgs
 end
 
--- === HỆ THỐNG MÓC NỐI GÓI TIN (HOOKMETAMETHOD) ===
 pcall(function()
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
         local method = getnamecallmethod()
         local args = {...}
-        
         if _G.IsRecording and not checkcaller() and (method == "FireServer" or method == "InvokeServer") then
-            local remoteName = tostring(self.Name)
-            local isSpam = remoteName:match("Mouse") or remoteName:match("Camera") or remoteName:match("Move") or remoteName:match("Character")
-            
-            if not isSpam then
-                local success, err = pcall(function()
-                    _G.TargetRemote = self
-                    _G.TargetArgs = args
-                    _G.IsRecording = false
-                    _G.IsReady = true
-                    if _G.UpdateLog then _G.UpdateLog("🟢 ĐÃ TÓM GỌN REMOTE! Bật Auto đi!", Color3.fromRGB(0, 255, 100)) end
-                    print("[BUILD GENIUS F9] ✅ Bắt thành công dữ liệu từ: " .. remoteName)
-                end)
-                
-                if not success then F9_DiagnosticAndFix(err, "Trong lúc Ghi âm Packet") end
+            if not tostring(self.Name):match("Mouse") and not tostring(self.Name):match("Camera") then
+                _G.TargetRemote = self
+                _G.TargetArgs = args
+                _G.IsRecording = false
+                _G.IsReady = true
+                print("[V14] Tóm gọn Remote! Đã nạp dữ liệu kiến trúc.")
             end
         end
         return oldNamecall(self, ...)
     end)
 end)
 
--- === GIAO DIỆN SIÊU TỐI GIẢN ===
-local ScreenGui = Instance.new("ScreenGui", CoreGui)
-ScreenGui.Name = "BuildGeniusV13"
-ScreenGui.ResetOnSpawn = false
-
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 420, 0, 300)
-MainFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-MainFrame.Active = true
-MainFrame.Draggable = true
-Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
-
-local Title = Instance.new("TextLabel", MainFrame)
-Title.Size = UDim2.new(1, 0, 0, 40)
-Title.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-Title.Text = " 🤖 BUILD GENIUS v13.0 (F9 SELF-HEALING)"
-Title.TextColor3 = Color3.fromRGB(255, 80, 80)
-Title.Font = Enum.Font.Code
-Title.TextSize = 16
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
-
-local LogLabel = Instance.new("TextLabel", MainFrame)
-LogLabel.Size = UDim2.new(1, -20, 0, 35)
-LogLabel.Position = UDim2.new(0, 10, 0, 50)
-LogLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-LogLabel.Text = "⚪ Trạng thái: Chờ phân tích..."
-LogLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-LogLabel.Font = Enum.Font.SourceSansBold
-LogLabel.TextSize = 14
-Instance.new("UICorner", LogLabel).CornerRadius = UDim.new(0, 5)
-
-_G.UpdateLog = function(text, color)
-    LogLabel.Text = text
-    LogLabel.TextColor3 = color
+-- Hàm gửi khối lên Server
+local function PlaceBlock(targetCFrame)
+    if not _G.IsReady or not _G.TargetRemote then return end
+    local clonedArgs = ApplyCFrameAndRotation(_G.TargetArgs, targetCFrame)
+    if _G.TargetRemote:IsA("RemoteEvent") then
+        _G.TargetRemote:FireServer(unpack(clonedArgs))
+    else
+        task.spawn(function() _G.TargetRemote:InvokeServer(unpack(clonedArgs)) end)
+    end
 end
 
-local RecordBtn = Instance.new("TextButton", MainFrame)
-RecordBtn.Size = UDim2.new(1, -20, 0, 45)
-RecordBtn.Position = UDim2.new(0, 10, 0, 95)
-RecordBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0)
-RecordBtn.Text = "🔴 1. GHI ÂM (Bấm rồi đặt 1 khối)"
-RecordBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-RecordBtn.Font = Enum.Font.SourceSansBold
-RecordBtn.TextSize = 15
-Instance.new("UICorner", RecordBtn).CornerRadius = UDim.new(0, 6)
+-- =========================================================
+-- 🎨 GIAO DIỆN KÉP (UI MAIN & UI ADJUSTMENT TÁCH RỜI)
+-- =========================================================
+local SG = Instance.new("ScreenGui", CoreGui)
+SG.Name = "BG_V14"
 
-RecordBtn.MouseButton1Click:Connect(function()
-    _G.IsRecording = true
-    _G.IsReady = false
-    _G.UpdateLog("🟡 ĐANG QUÉT MẠNG... Cầm tool lên đặt đi!", Color3.fromRGB(255, 255, 0))
-    print("[BUILD GENIUS F9] ⏳ Đang đợi người dùng đặt khối...")
+-- BẢNG 1: MENU CHÍNH (GỌN GÀNG)
+local MainUI = Instance.new("Frame", SG)
+MainUI.Size = UDim2.new(0, 200, 0, 160)
+MainUI.Position = UDim2.new(0.05, 0, 0.4, 0)
+MainUI.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+MainUI.Draggable = true
+Instance.new("UICorner", MainUI).CornerRadius = UDim.new(0, 8)
+
+local T1 = Instance.new("TextLabel", MainUI)
+T1.Size = UDim2.new(1, 0, 0, 30)
+T1.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+T1.Text = " MAIN UI (V14)"
+T1.TextColor3 = Color3.fromRGB(0, 255, 150)
+T1.Font = Enum.Font.Code
+T1.TextSize = 14
+
+local BtnRec = Instance.new("TextButton", MainUI)
+BtnRec.Size = UDim2.new(1, -10, 0, 35)
+BtnRec.Position = UDim2.new(0, 5, 0, 35)
+BtnRec.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+BtnRec.Text = "1. GHI ÂM KHỐI"
+BtnRec.TextColor3 = Color3.fromRGB(255,255,255)
+BtnRec.Font = Enum.Font.SourceSansBold
+BtnRec.MouseButton1Click:Connect(function() _G.IsRecording = true; print("Đang rình...") end)
+
+-- BẢNG 2: THANH ĐIỀU CHỈNH (TÁCH RỜI, KÉO THẢ TỰ DO)
+local AdjUI = Instance.new("Frame", SG)
+AdjUI.Size = UDim2.new(0, 350, 0, 300)
+AdjUI.Position = UDim2.new(0.5, 0, 0.3, 0)
+AdjUI.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+AdjUI.Draggable = true
+AdjUI.Visible = false -- Ẩn lúc đầu
+Instance.new("UICorner", AdjUI).CornerRadius = UDim.new(0, 8)
+
+local T2 = Instance.new("TextLabel", AdjUI)
+T2.Size = UDim2.new(1, 0, 0, 30)
+T2.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+T2.Text = " BẢNG ĐIỀU CHỈNH KIẾN TRÚC"
+T2.TextColor3 = Color3.fromRGB(0, 200, 255)
+T2.Font = Enum.Font.Code
+T2.TextSize = 14
+
+local BtnToggleAdj = Instance.new("TextButton", MainUI)
+BtnToggleAdj.Size = UDim2.new(1, -10, 0, 35)
+BtnToggleAdj.Position = UDim2.new(0, 5, 0, 75)
+BtnToggleAdj.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+BtnToggleAdj.Text = "2. BẬT BẢNG ĐIỀU CHỈNH"
+BtnToggleAdj.TextColor3 = Color3.fromRGB(255,255,255)
+BtnToggleAdj.Font = Enum.Font.SourceSansBold
+BtnToggleAdj.MouseButton1Click:Connect(function()
+    AdjUI.Visible = not AdjUI.Visible
+    GhostBlock.Visible = AdjUI.Visible -- Bật bảng thì hiện khối mờ
 end)
 
-local AutoBuildBtn = Instance.new("TextButton", MainFrame)
-AutoBuildBtn.Size = UDim2.new(1, -20, 0, 45)
-AutoBuildBtn.Position = UDim2.new(0, 10, 0, 150)
-AutoBuildBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-AutoBuildBtn.Text = "⚪ 2. AUTO BUILD: ĐANG TẮT"
-AutoBuildBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-AutoBuildBtn.Font = Enum.Font.SourceSansBold
-AutoBuildBtn.TextSize = 16
-Instance.new("UICorner", AutoBuildBtn).CornerRadius = UDim.new(0, 6)
+local BtnPlaceSingle = Instance.new("TextButton", MainUI)
+BtnPlaceSingle.Size = UDim2.new(1, -10, 0, 35)
+BtnPlaceSingle.Position = UDim2.new(0, 5, 0, 115)
+BtnPlaceSingle.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+BtnPlaceSingle.Text = "3. ĐẶT 1 KHỐI (THEO MỜ)"
+BtnPlaceSingle.TextColor3 = Color3.fromRGB(255,255,255)
+BtnPlaceSingle.Font = Enum.Font.SourceSansBold
+BtnPlaceSingle.MouseButton1Click:Connect(function() PlaceBlock(GhostBlock.CFrame) end)
 
-local isAutoBuilding = false
+-- CHỨC NĂNG BẢNG 2 (ADJUSTMENT)
+-- Hàm tạo nút +/- thay cho slider để chuẩn xác 100% trên điện thoại
+local function CreateAdjuster(name, yPos, targetVar, step, isVector, axis)
+    local Lbl = Instance.new("TextLabel", AdjUI)
+    Lbl.Size = UDim2.new(0.4, 0, 0, 25)
+    Lbl.Position = UDim2.new(0.05, 0, 0, yPos)
+    Lbl.BackgroundTransparency = 1
+    Lbl.Text = name
+    Lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+    Lbl.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local BtnMinus = Instance.new("TextButton", AdjUI)
+    BtnMinus.Size = UDim2.new(0.1, 0, 0, 25)
+    BtnMinus.Position = UDim2.new(0.5, 0, 0, yPos)
+    BtnMinus.Text = "-"
+    
+    local ValLbl = Instance.new("TextLabel", AdjUI)
+    ValLbl.Size = UDim2.new(0.2, 0, 0, 25)
+    ValLbl.Position = UDim2.new(0.65, 0, 0, yPos)
+    ValLbl.Text = "0"
+    
+    local BtnPlus = Instance.new("TextButton", AdjUI)
+    BtnPlus.Size = UDim2.new(0.1, 0, 0, 25)
+    BtnPlus.Position = UDim2.new(0.85, 0, 0, yPos)
+    BtnPlus.Text = "+"
 
-_G.ToggleAutoBuild = function(forceState)
-    if forceState ~= nil then isAutoBuilding = forceState else isAutoBuilding = not isAutoBuilding end
-    
-    if isAutoBuilding and not _G.IsReady then
-        _G.UpdateLog("❌ CHƯA CÓ DATA! Phải Ghi Âm trước!", Color3.fromRGB(255, 50, 50))
-        isAutoBuilding = false
-        return
+    local function UpdateVal()
+        if isVector then ValLbl.Text = tostring(_G[targetVar][axis]) else ValLbl.Text = tostring(_G[targetVar]) end
     end
+    UpdateVal()
+
+    BtnMinus.MouseButton1Click:Connect(function()
+        if isVector then
+            local cv = _G[targetVar]
+            if axis=="X" then _G[targetVar] = Vector3.new(cv.X-step, cv.Y, cv.Z)
+            elseif axis=="Y" then _G[targetVar] = Vector3.new(cv.X, cv.Y-step, cv.Z)
+            else _G[targetVar] = Vector3.new(cv.X, cv.Y, cv.Z-step) end
+        else _G[targetVar] = _G[targetVar] - step end
+        UpdateVal()
+    end)
     
-    if isAutoBuilding then
-        AutoBuildBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-        AutoBuildBtn.Text = "🟢 2. AUTO BUILD: ĐANG CHẠY"
-        print("[BUILD GENIUS F9] 🚀 Auto-Build Bắt Đầu!")
-    else
-        AutoBuildBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-        AutoBuildBtn.Text = "⚪ 2. AUTO BUILD: ĐANG TẮT"
-        print("[BUILD GENIUS F9] 🛑 Auto-Build Tạm Dừng.")
-    end
+    BtnPlus.MouseButton1Click:Connect(function()
+        if isVector then
+            local cv = _G[targetVar]
+            if axis=="X" then _G[targetVar] = Vector3.new(cv.X+step, cv.Y, cv.Z)
+            elseif axis=="Y" then _G[targetVar] = Vector3.new(cv.X, cv.Y+step, cv.Z)
+            else _G[targetVar] = Vector3.new(cv.X, cv.Y, cv.Z+step) end
+        else _G[targetVar] = _G[targetVar] + step end
+        UpdateVal()
+    end)
 end
 
-AutoBuildBtn.MouseButton1Click:Connect(function() _G.ToggleAutoBuild() end)
+-- Bộ điều chỉnh Hitbox (Kích thước)
+local Lbl1 = Instance.new("TextLabel", AdjUI)
+Lbl1.Size = UDim2.new(1, 0, 0, 20); Lbl1.Position = UDim2.new(0, 0, 0, 35); Lbl1.Text = " --- KÍCH THƯỚC (HITBOX) ---"; Lbl1.TextColor3 = Color3.fromRGB(150,150,150); Lbl1.BackgroundTransparency=1
+CreateAdjuster("Ngang (Hitbox X)", 55, "Hitbox", 1, true, "X")
+CreateAdjuster("Cao (Hitbox Y)", 85, "Hitbox", 1, true, "Y")
+CreateAdjuster("Dọc (Hitbox Z)", 115, "Hitbox", 1, true, "Z")
 
-local CloseBtn = Instance.new("TextButton", ScreenGui)
-CloseBtn.Size = UDim2.new(0, 50, 0, 50)
-CloseBtn.Position = UDim2.new(0.02, 0, 0.02, 0)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-CloseBtn.Text = "V13"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-CloseBtn.Font = Enum.Font.Code
-CloseBtn.TextSize = 18
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(1, 0)
-CloseBtn.MouseButton1Click:Connect(function() MainFrame.Visible = not MainFrame.Visible end)
+-- Nút Xoay 4 Hướng
+local RotateBtn = Instance.new("TextButton", AdjUI)
+RotateBtn.Size = UDim2.new(0.8, 0, 0, 30)
+RotateBtn.Position = UDim2.new(0.1, 0, 0, 150)
+RotateBtn.BackgroundColor3 = Color3.fromRGB(100, 50, 150)
+RotateBtn.Text = "🔄 XOAY HƯỚNG: 0 Độ"
+RotateBtn.TextColor3 = Color3.fromRGB(255,255,255)
+RotateBtn.MouseButton1Click:Connect(function()
+    _G.RotationY = (_G.RotationY + 90) % 360
+    RotateBtn.Text = "🔄 XOAY HƯỚNG: " .. _G.RotationY .. " Độ"
+end)
 
--- === VÒNG LẶP AUTO BUILD (BỌC PCALL TỰ PHỤC HỒI) ===
-task.spawn(function()
-    while true do
-        task.wait(_G.BuildDelay) -- Chờ theo tốc độ AI quyết định (tránh văng game)
-        if isAutoBuilding and _G.IsReady and _G.TargetRemote then
-            local success, err = pcall(function()
-                local Char = LocalPlayer.Character
-                local Root = Char and Char:FindFirstChild("HumanoidRootPart")
-                if Root then
-                    local targetPos = Root.Position + (Root.CFrame.LookVector * 6) - Vector3.new(0, 1.5, 0)
-                    targetPos = Vector3.new(math.round(targetPos.X), math.round(targetPos.Y), math.round(targetPos.Z))
-                    
-                    local clonedArgs = ReplaceCoordinatesInArgs(_G.TargetArgs, targetPos)
-                    
-                    if _G.TargetRemote:IsA("RemoteEvent") then
-                        _G.TargetRemote:FireServer(unpack(clonedArgs))
-                    elseif _G.TargetRemote:IsA("RemoteFunction") then
-                        task.spawn(function()
-                            _G.TargetRemote:InvokeServer(unpack(clonedArgs))
-                        end)
-                    end
+-- BỘ XÂY NHANH KỲ DIỆU (SÀN, TƯỜNG)
+local Lbl2 = Instance.new("TextLabel", AdjUI)
+Lbl2.Size = UDim2.new(1, 0, 0, 20); Lbl2.Position = UDim2.new(0, 0, 0, 190); Lbl2.Text = " --- XÂY NHANH TỰ ĐỘNG ---"; Lbl2.TextColor3 = Color3.fromRGB(150,150,150); Lbl2.BackgroundTransparency=1
+
+local function ArrayBuild(mode)
+    if not _G.IsReady then return end
+    local startCFrame = GhostBlock.CFrame
+    local hX, hY, hZ = _G.Hitbox.X, _G.Hitbox.Y, _G.Hitbox.Z
+    
+    task.spawn(function()
+        if mode == "Wall" then
+            -- Xây Tường: Rộng 5 khối, Cao 4 khối
+            for y = 0, 3 do
+                for x = -2, 2 do
+                    PlaceBlock(startCFrame * CFrame.new(x * hX, y * hY, 0))
+                    task.wait(0.1) -- Tránh lag Server
                 end
-            end)
-            
-            -- NẾU CÓ LỖI XẢY RA KHI ĐẶT KHỐI, BẮT LỖI NGAY!
-            if not success then
-                F9_DiagnosticAndFix(err, "Trong vòng lặp Auto-Build")
+            end
+        elseif mode == "Floor" then
+            -- Xây Sàn/Mái: Rộng 5x5
+            for z = -2, 2 do
+                for x = -2, 2 do
+                    PlaceBlock(startCFrame * CFrame.new(x * hX, 0, z * hZ))
+                    task.wait(0.1)
+                end
+            end
+        elseif mode == "Pillar" then
+            -- Xây Cột: Cao 5 khối
+            for y = 0, 4 do
+                PlaceBlock(startCFrame * CFrame.new(0, y * hY, 0))
+                task.wait(0.1)
             end
         end
-    end
-end)
+    end)
+end
 
-print("=========================================")
-print("🤖 BUILD GENIUS V13: LOADED SUCCESSFULLY")
-print("✅ Hệ thống quét F9 và Auto-Fix đã trực chiến!")
-print("=========================================")
+local BtnWall = Instance.new("TextButton", AdjUI)
+BtnWall.Size = UDim2.new(0.3, 0, 0, 30); BtnWall.Position = UDim2.new(0.05, 0, 0, 220); BtnWall.Text = "XÂY TƯỜNG"
+BtnWall.MouseButton1Click:Connect(function() ArrayBuild("Wall") end)
+
+local BtnFloor = Instance.new("TextButton", AdjUI)
+BtnFloor.Size = UDim2.new(0.3, 0, 0, 30); BtnFloor.Position = UDim2.new(0.4, 0, 0, 220); BtnFloor.Text = "XÂY SÀN/MÁI"
+BtnFloor.MouseButton1Click:Connect(function() ArrayBuild("Floor") end)
+
+local BtnPillar = Instance.new("TextButton", AdjUI)
+BtnPillar.Size = UDim2.new(0.2, 0, 0, 30); BtnPillar.Position = UDim2.new(0.75, 0, 0, 220); BtnPillar.Text = "XÂY CỘT"
+BtnPillar.MouseButton1Click:Connect(function() ArrayBuild("Pillar") end)
+
+print("✅ BUILD GENIUS V14 ARCHITECT: LOADED MƯỢT MÀ!")
